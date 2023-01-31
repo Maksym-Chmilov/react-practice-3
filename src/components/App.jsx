@@ -1,32 +1,48 @@
 import React, { Component } from 'react';
-import { data } from 'data/data';
 import { MoviesGallery } from './MoviesGallery/MoviesGallery';
 import { Modal } from './Modal/Modal';
-const MOVIES_KEY = 'movies';
+import { Button } from './Button/Button';
+import { fetchMovies } from 'services/movies-api';
 
 export class App extends Component {
   state = {
-    movies: data,
+    movies: [],
     currentImg: null,
+    isListShown: false,
+    isLoading: false,
+    page: 1,
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    if (prevState.movies !== this.state.movies) {
-      localStorage.setItem(MOVIES_KEY, JSON.stringify(this.state.movies));
+  componentDidUpdate(_, prevState) {
+    const { isListShown, page } = this.state;
+    if (
+      (isListShown && prevState.isListShown !== isListShown) ||
+      (isListShown && prevState.page !== page)
+    ) {
+      this.getMovie();
+    }
+    if (!isListShown && prevState.isListShown !== isListShown) {
+      this.setState({ page: 1, movies: [] });
     }
   }
 
-  componentDidMount() {
-    const localData = localStorage.getItem(MOVIES_KEY);
-
-    if (localData) {
-      this.setState({ movies: JSON.parse(localData) });
-    }
-  }
+  getMovie = () => {
+    this.setState({ isLoading: true });
+    fetchMovies(this.state.page)
+      .then(data => {
+        this.setState(prevState => ({
+          movies: [...prevState.movies, ...data.data.results],
+        }));
+      })
+      .catch(error => console.log(error))
+      .finally(() => this.setState({ isLoading: false }));
+  };
 
   deleteMovie = id => {
     this.setState(prevState => {
-      return { movies: prevState.movies.filter(movie => movie.id !== id) };
+      return {
+        movies: prevState.movies.filter(movie => movie.id !== id),
+      };
     });
   };
 
@@ -34,17 +50,34 @@ export class App extends Component {
     this.setState({ currentImg: data });
   };
 
+  showMovies = () => {
+    console.log('should show movies here');
+    this.setState(prevState => ({ isListShown: !prevState.isListShown }));
+  };
+
+  loadMore = () => {
+    this.setState(prevState => ({ page: prevState.page + 1 }));
+  };
+
   render() {
-    const {currentImg} = this.state
+    const { currentImg, isListShown, movies } = this.state;
     return (
       <>
-        <MoviesGallery
-          movies={this.state.movies}
-          deleteMovie={this.deleteMovie}
-          showPoster={this.showPoster}
+        <Button
+          clickHandler={this.showMovies}
+          text={isListShown ? 'Hide Movies List' : 'Show Movies List'}
         />
-        {currentImg && <Modal currentImg={currentImg}/>}
-        
+        {isListShown && (
+          <>
+            <MoviesGallery
+              movies={movies}
+              deleteMovie={this.deleteMovie}
+              showPoster={this.showPoster}
+            />
+            <Button text="Load more" clickHandler={this.loadMore} />
+          </>
+        )}
+        {currentImg && <Modal currentImg={currentImg} />}
       </>
     );
   }
